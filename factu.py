@@ -3,6 +3,7 @@ import sys
 from datetime import date, datetime
 import csv
 from pathlib import Path
+from shutil import move
 
 
 KEYS = [
@@ -120,6 +121,9 @@ template_factu = """
 </section>
 <section>
 <h1>jobs</h1>
+<div>
+<em>extrait de <a href="{reference_csv}">{reference_csv}</a></em>
+</div>
 <table>
 <thead>
       <th>date</th>
@@ -151,7 +155,7 @@ template_print = """
 """
 
 
-def emit(path, user, total_price, jobs):
+def emit(path, user, total_price, jobs, reference_csv):
     job_lines = []
     for job in jobs:
         job_lines.append(template_print.format(**job))
@@ -162,7 +166,8 @@ def emit(path, user, total_price, jobs):
         total_price=total_price, 
         jobs=rows, 
         date=datetime.now().isoformat(),
-        style=stylesheet
+        style=stylesheet,
+        reference_csv=reference_csv
         )
     with path.open('w') as out:
         out.write(html)
@@ -180,6 +185,8 @@ def main():
     current_path = Path(sys.argv[1])
     base_dir = Path(sys.argv[2])
     out_dir = base_dir.joinpath(today)
+    reference_csv = out_dir.joinpath('current-{}.csv'.format(today))
+
     if out_dir.exists() == False:
         out_dir.mkdir(parents=True)
 
@@ -249,7 +256,15 @@ def main():
 
         for user in db:
             jobs = db[user]
-            emit(out_dir.joinpath('{}-{}.html'.format(user, today)), user, get_total(jobs), jobs)
+            emit(
+                out_dir.joinpath('{}-{}.html'.format(user, today)), 
+                user, 
+                get_total(jobs), 
+                jobs,
+                reference_csv.name
+            )
+        
+        move(current_path.as_posix(), reference_csv.as_posix())
 
 
 if __name__ == '__main__':
