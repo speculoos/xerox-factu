@@ -32,8 +32,8 @@ KEYS = [
     'Printer Model Number',
 ]
 
-PRIX_COULEUR = 389
-PRIX_NOIR = 396
+PRIX_COULEUR = 389 / 100
+PRIX_NOIR = 396 / 100
 PRIX_FUSER = 242 / 80000
 PRIX_IMAGEUR = 171 * 4 / 80000
 PRIX_PAPIER_A3 = 77 / 2500
@@ -101,7 +101,7 @@ table tr:last-child td {
 table tr:hover td {
 	background: #f2f2f2;
 	background: -webkit-gradient(linear, left top, left bottom, from(#f2f2f2), to(#f0f0f0));
-	background: -moz-linear-gradient(top,  #f2f2f2,  #f0f0f0);	
+	background: -moz-linear-gradient(top,  #f2f2f2,  #f0f0f0);
 }
 """
 
@@ -154,6 +154,26 @@ template_print = """
 </tr>
 """
 
+template_index = """
+<html>
+<head>
+<title>xerox - index</title>
+<style>
+{style}
+</style>
+</head>
+<body>
+{items}
+</body>
+</html>
+"""
+
+template_index_item = """
+<section>
+<h1><a href="{user}.html">{user}</h1>
+</section>
+"""
+
 
 def emit(path, user, total_price, jobs, reference_csv):
     job_lines = []
@@ -162,13 +182,13 @@ def emit(path, user, total_price, jobs, reference_csv):
     rows = ''.join(job_lines)
 
     html = template_factu.format(
-        user=user, 
-        total_price=total_price, 
-        jobs=rows, 
+        user=user,
+        total_price=total_price,
+        jobs=rows,
         date=datetime.now().isoformat(),
         style=stylesheet,
         reference_csv=reference_csv
-        )
+    )
     with path.open('w') as out:
         out.write(html)
 
@@ -180,18 +200,9 @@ def get_total(jobs):
     return t
 
 
-def main():
-    today = date.today().isoformat()
-    current_path = Path(sys.argv[1])
-    base_dir = Path(sys.argv[2])
-    out_dir = base_dir.joinpath(today)
-    reference_csv = out_dir.joinpath('current-{}.csv'.format(today))
-
-    if out_dir.exists() == False:
-        out_dir.mkdir(parents=True)
-
+def make_jobs(current_path):
+    db = dict()
     with current_path.open('r') as current:
-        db = dict()
         current_reader = csv.DictReader(current)
         for row in current_reader:
             user = row[KEYS[2]].lstrip().rstrip()
@@ -213,7 +224,7 @@ def main():
             # print('{} {}'.format(cyan, row[KEYS[18]]))
             max_color_price = 1.5
             paper_price = 0
-            
+
             if ' A4' == size:
                 paper_price = sheets * PRIX_PAPIER_A4
                 max_color_price = max_color_price / 2
@@ -229,16 +240,10 @@ def main():
                 + (pages * PRIX_IMAGEUR)
                 + paper_price
             )
-            
-            # print('{} = {} {} {} {} {} {} {}'.format( 
-            #     price
-            #     , cyan
-            #     , (magenta * PRIX_COULEUR)
-            #     , (yellow * PRIX_COULEUR)
-            #     , (black * PRIX_NOIR)
-            #     , (pages * PRIX_FUSER)
-            #     , (pages * PRIX_IMAGEUR)
-            #     , paper_price
+
+            # print('{} = {} {} {} {} {} {} {}'.format(
+            #     price, cyan, (magenta * PRIX_COULEUR), (yellow * PRIX_COULEUR), (
+            #         black * PRIX_NOIR), (pages * PRIX_FUSER), (pages * PRIX_IMAGEUR), paper_price
             # ))
 
             if user not in db:
@@ -254,17 +259,66 @@ def main():
                 price=price
             ))
 
+    return db
+
+
+COMMANDS = ['update', 'close']
+
+
+def main():
+    today = date.today().isoformat()
+    command = sys.argv[1]
+    if command not in COMMANDS:
+        print(
+            'command must be one of {}, yours was {}'.format(COMMANDS, command))
+        sys.exit(1)
+    current_path = Path(sys.argv[2])
+    base_dir = Path(sys.argv[3])
+
+    out_dir = None
+    reference_csv = None
+    if 'update' == command:
+        out_dir = base_dir
+        reference_csv = current_path
+    else:
+        out_dir = base_dir.joinpath(today)
+        reference_csv = out_dir.joinpath('current-{}.csv'.format(today))
+
+    if out_dir.exists() == False:
+        out_dir.mkdir(parents=True)
+
+    db = make_jobs(current_path)
+
+    if 'close' == command:
         for user in db:
             jobs = db[user]
             emit(
-                out_dir.joinpath('{}-{}.html'.format(user, today)), 
-                user, 
-                get_total(jobs), 
+                out_dir.joinpath('{}-{}.html'.format(user, today)),
+                user,
+                get_total(jobs),
                 jobs,
                 reference_csv.name
             )
-        
+
         move(current_path.as_posix(), reference_csv.as_posix())
+
+    else:
+        index_items = []
+        for user in db:
+            jobs = db[user]
+            emit(
+                out_dir.joinpath('{}.html'.format(user)),
+                user,
+                get_total(jobs),
+                jobs,
+                reference_csv.name
+            )
+            index_items.append(template_index_item.format(user=user))
+
+        index = template_index.format(
+            items=''.join(index_items), style=stylesheet)
+        with out_dir.joinpath('index.html').open('w') as index_file:
+            index_file.write(index)
 
 
 if __name__ == '__main__':
