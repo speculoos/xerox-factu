@@ -1,0 +1,3 @@
+0 * * * * /home/pi/xerox-factu/venv/bin/python /home/pi/xerox-factu/update_csv.py /var/www/xerox/current.csv VERY_SECRET_PASSWORD
+15 * * * * /home/pi/xerox-factu/venv/bin/python /home/pi/xerox-factu/factu.py update /var/www/xerox/current.csv /var/www/html/xerox/status
+30 2 1 */3 * /home/pi/xerox-factu/venv/bin/python /home/pi/xerox-factu/factu.py close /var/www/xerox/current.csv /var/www/html/xerox/close
