@@ -127,6 +127,7 @@ template_factu = """
 <table>
 <thead>
       <th>date</th>
+      <th>hostname</th>
       <th>fichier</th>
       <th>format</th>
       <th>nombre de pages</th>
@@ -146,6 +147,7 @@ template_factu = """
 template_print = """
 <tr>
 <td>{start_time}</td>
+<td>{hostname}</td>
 <td>{filename}</td>
 <td>{size}</td>
 <td>{pages}</td>
@@ -206,6 +208,7 @@ def make_jobs(current_path):
         current_reader = csv.DictReader(current)
         for row in current_reader:
             user = row[KEYS[2]].lstrip().rstrip()
+            hostname = row[KEYS[3]]
             filename = row[KEYS[4]]
             start_time = row[KEYS[8]]
             pages = int(row[KEYS[7]])
@@ -256,7 +259,8 @@ def make_jobs(current_path):
                 pages=pages,
                 size=size,
                 sheets=sheets,
-                price=price
+                price=price,
+                hostname=hostname
             ))
 
     return db
