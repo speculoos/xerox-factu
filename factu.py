@@ -38,7 +38,7 @@ PRIX_FUSER = 242 / 80000
 PRIX_IMAGEUR = 171 * 4 / 80000
 PRIX_PAPIER_A3 = 77 / 2500
 PRIX_PAPIER_A4 = 42 / 2500
-
+SOPHIE_PRICE_FACTOR = 1.1
 
 stylesheet = """
 body {
@@ -58,6 +58,15 @@ h1 {
 
 .price{
         font-size: 200%;
+}
+
+.pphn .hostname {
+        color: cadetblue;
+    font-family: monospace;
+}
+
+.pphn .price{
+        font-size: 150%;
 }
 
 table {
@@ -120,6 +129,10 @@ template_factu = """
 <div class="price">prix: {total_price:.2f} euros</div>
 </section>
 <section>
+<h1>Prix par hostname</h1>
+{pphn}
+</section>
+<section>
 <h1>jobs</h1>
 <div>
 <em>extrait de <a href="{reference_csv}">{reference_csv}</a></em>
@@ -127,6 +140,7 @@ template_factu = """
 <table>
 <thead>
       <th>date</th>
+      <th>protocol</th>
       <th>hostname</th>
       <th>fichier</th>
       <th>format</th>
@@ -147,6 +161,7 @@ template_factu = """
 template_print = """
 <tr>
 <td>{start_time}</td>
+<td>{protocol}</td>
 <td>{hostname}</td>
 <td>{filename}</td>
 <td>{size}</td>
@@ -176,6 +191,28 @@ template_index_item = """
 </section>
 """
 
+template_pphn = """
+<div class="pphn">
+<span class="hostname">{hostname}</span>
+<span class="price">{price:.2f}</span>
+</div>
+"""
+
+
+def price_per_hostname(jobs):
+    pphn = dict()
+    for job in jobs:
+        hn = job['hostname']
+        if hn not in pphn:
+            pphn[hn] = dict(hostname=hn, price=0)
+        pphn[hn]['price'] += job['price']
+
+    lines = []
+    for hn in pphn:
+        lines.append(template_pphn.format(**pphn[hn]))
+
+    return ''.join(lines)
+
 
 def emit(path, user, total_price, jobs, reference_csv):
     job_lines = []
@@ -184,6 +221,7 @@ def emit(path, user, total_price, jobs, reference_csv):
     rows = ''.join(job_lines)
 
     html = template_factu.format(
+        pphn=price_per_hostname(jobs),
         user=user,
         total_price=total_price,
         jobs=rows,
@@ -214,6 +252,7 @@ def make_jobs(current_path):
             pages = int(row[KEYS[7]])
             size = row[KEYS[13]]
             sheets = int(row[KEYS[6]])
+            protocol = row[KEYS[1]]
 
             cyan = float(row[KEYS[18]][:-1])
             magenta = float(row[KEYS[19]][:-1])
@@ -242,7 +281,7 @@ def make_jobs(current_path):
                 + (pages * PRIX_FUSER)
                 + (pages * PRIX_IMAGEUR)
                 + paper_price
-            )
+            ) * SOPHIE_PRICE_FACTOR
 
             # print('{} = {} {} {} {} {} {} {}'.format(
             #     price, cyan, (magenta * PRIX_COULEUR), (yellow * PRIX_COULEUR), (
@@ -260,7 +299,8 @@ def make_jobs(current_path):
                 size=size,
                 sheets=sheets,
                 price=price,
-                hostname=hostname
+                hostname=hostname,
+                protocol=protocol
             ))
 
     return db
@@ -296,6 +336,7 @@ def main():
     if 'close' == command:
         for user in db:
             jobs = db[user]
+
             emit(
                 out_dir.joinpath('{}-{}.html'.format(user, today)),
                 user,
